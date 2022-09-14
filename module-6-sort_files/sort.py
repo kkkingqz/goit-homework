@@ -1,9 +1,17 @@
 from pathlib import Path
-import re, json, os, shutil, sys
+import re, os, shutil, sys
 from collections import defaultdict
-from unicodedata import name
 
-def get_all_files(path, GROUP_DICT):
+GROUP_DICT = {
+    "images": [".jpeg", ".png", ".jpg", ".svg"], 
+    "video": [".avi", ".mp4", ".mov", ".mkv", ".wmv"], 
+    "audio": [".mp3", ".ogg", ".wav", ".amr"], 
+    "documents": [".doc", ".docx", ".txt", ".pdf", ".xlsx", ".pptx"], 
+    "archives": [".zip", ".gz", ".tar"], 
+    "other": []}
+
+
+def get_all_files(path):
 #получаем список файлов и папок целевой директории
 
     file_names, dir_names = [], []
@@ -18,13 +26,13 @@ def get_all_files(path, GROUP_DICT):
         print('No permission')
 
     for dir in list(dir_names):
-        dirs, file = get_all_files(path.joinpath(dir), GROUP_DICT)
+        dirs, file = get_all_files(path.joinpath(dir))
         dir_names.extend(dirs)
         file_names.extend(file)
     
     return dir_names, file_names
 
-def sort_files(file_names, GROUP_DICT):
+def sort_files(file_names):
 #создаем словарь files_dict с разбивкой файлов по категориям
 #ключ --> название категории
 #создаем словарь ext_dict в котором считаем кол-во по расширениям
@@ -34,7 +42,7 @@ def sort_files(file_names, GROUP_DICT):
 
     for file in file_names:
 
-        ext = file.suffix or 'no_ext'
+        ext = file.suffix.lower() or 'no_ext'
 
         for group_name, group_ext in GROUP_DICT.items():
 
@@ -48,7 +56,7 @@ def sort_files(file_names, GROUP_DICT):
 
                 break
 
-        if file not in files_dict.values():
+        if file not in files_dict[group_name]:
             files_dict['other'].append(file)
 
             #if not ext:
@@ -61,8 +69,12 @@ def sort_files(file_names, GROUP_DICT):
             
     return files_dict, ext_dict
 
+def normalize2(file):
+#нормализация для объекта Path
+    return Path(file.parent.joinpath(normalize(file.stem)+file.suffix))
+
 def normalize(file_name):
-#нормализация имени
+#нормализация имени в соответствии с ТЗ. Принимает и отдает строку
 
     CYRILLIC_SYMBOLS = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяєіїґ"
     TRANSLATION = ("a", "b", "v", "g", "d", "e", "e", "j", "z", "i", "j", "k", "l", "m", "n", "o", "p", "r", "s", "t", "u", "f", "h", "ts", "ch", "sh", "sch", "", "y", "", "e", "yu", "ya", "je", "i", "ji", "g")
@@ -74,12 +86,10 @@ def normalize(file_name):
 
     new_name = ''
 
-    for ch in str(file_name.stem):
+    for ch in file_name:
         new_name += TRANS.get(ord(ch)) or ch
 
     new_name = re.sub(r'[^a-zA-Z0-9]{1}','_',new_name)
-    new_name += file_name.suffix
-
     return new_name
 
 def simple_copy(files, group, path):
@@ -97,11 +107,11 @@ def simple_copy(files, group, path):
         try:
             file_ifexists_prefix=''
             file_ifexists_prefix_i = 1
-            while os.path.exists(path.joinpath(group).joinpath(file_ifexists_prefix+normalize(file))):
+            while os.path.exists(path.joinpath(group).joinpath(file_ifexists_prefix+normalize2(file).name)):
                 file_ifexists_prefix = 'rename_'+str(file_ifexists_prefix_i)+'_'
                 file_ifexists_prefix_i+=1
 
-            shutil.copy(file, path.joinpath(group).joinpath(file_ifexists_prefix+normalize(file)))
+            shutil.copy(file, path.joinpath(group).joinpath(file_ifexists_prefix+normalize2(file).name))
             os.remove(file)
         except PermissionError:
             print('No permission for: '+str(file))
@@ -109,8 +119,6 @@ def simple_copy(files, group, path):
 def remove_empty_dir(dir_list):
 #удаляем пустые директории. в не пустых - нормализация имени
 
-    #def pathsort(s):
-    #    return -len(s.parts)
     dir_list.sort(key=lambda dir: -len(dir.parts))
 
     for dir in dir_list:
@@ -118,7 +126,7 @@ def remove_empty_dir(dir_list):
             os.rmdir(dir)
         except (PermissionError, OSError) as e:
             try:
-                os.rename(d, d.parent.joinpath(normalize(dir.name)))
+                os.rename(dir, dir.parent.joinpath(normalize(dir.name)))
             except (PermissionError, OSError) as ee:
                 pass
 
@@ -136,14 +144,16 @@ def processing_audio(files, group, path):
 def processing_documents(files, group, path):
     simple_copy(files, group, path)
 
-def processing_else(files, group, path):
+def processing_other(files, group, path):
 #нормализация имени для файлов не попавших в категории
 
     for file in files:
         try:
-            os.rename(file,file.parent.joinpath(normalize(file)))
+            os.rename(file,normalize2(file))#file.parent.joinpath(normalize(file)))
         except PermissionError:
             print('No permission for: '+str(file))
+        except FileExistsError:
+            os.remove(file)
 
 def processing_archives(files, group, path):
 #распаковка архивов
@@ -157,24 +167,22 @@ def processing_archives(files, group, path):
         return False
 
     for file in files:
-        #if f[0].name[:-7] == '.tar.gz':
-        #    f[1]='.tar.gz'
         try:
             file_ifexists_prefix=''
             file_ifexists_prefix_i = 1
-            while os.path.exists(path.joinpath(group).joinpath(file_ifexists_prefix+normalize(file))):
+            while os.path.exists(path.joinpath(group).joinpath(file_ifexists_prefix+normalize2(file).stem)):
                 file_ifexists_prefix = 'rename_'+str(file_ifexists_prefix_i)+'_'
                 file_ifexists_prefix_i+=1
 
-            os.makedirs(path.joinpath(group).joinpath(Path(file_ifexists_prefix+normalize(file)).stem))
-            shutil.unpack_archive(file, path.joinpath(group).joinpath(Path(file_ifexists_prefix+normalize(file)).stem))
+            os.makedirs(path.joinpath(group).joinpath(file_ifexists_prefix+normalize2(file).stem))
+            shutil.unpack_archive(file, path.joinpath(group).joinpath(file_ifexists_prefix+normalize2(file).stem))
             os.remove(file)
         except PermissionError:
             print('No permission for: '+str(file))
 
 #не было в ТЗ ----------------------------------------
 def print_files(files_dict, path):
-#печать файлов по группам.
+#печать файлов по группам. запускается sort.py <PathToFolder> --show
 
     def print_center(string):
         string = '   ' + string + '   '
@@ -207,19 +215,84 @@ def print_files(files_dict, path):
     print('*'*80+'\n'+'*'*80+'\n'+'*'*80+'\n')
 #--------------------------------------------------------------------
 
-GROUP_DICT = {
-    "images": [".jpeg", ".png", ".jpg", ".svg"], 
-    "video": [".avi", ".mp4", ".mov", ".mkv", ".wmv"], 
-    "audio": [".mp3", ".ogg", ".wav", ".amr"], 
-    "documents": [".doc", ".docx", ".txt", ".pdf", ".xlsx", ".pptx"], 
-    "archives": [".zip", ".gz", ".tar"], 
-    "other": []}
+def get_args():
+#получаем параметры запуска. аргумент show - выводит список файлов по категориям, но ничего не копирует
 
-path = Path('c:\\users\\user\\documents')
-d, f = get_all_files(path, GROUP_DICT)
-#print(d)
-#print(f)
-fd, ed = sort_files(f, GROUP_DICT)
-#print(print_center('image'))
-#print('*'*80)
-print(print_files(fd, path))
+    show = False
+    if len(sys.argv) == 2:
+        path_string = sys.argv[1]
+    elif len(sys.argv) == 3 and (sys.argv[1] in ['-show', '--show']):
+        path_string = sys.argv[2]
+        show = True
+    elif len(sys.argv) == 3 and (sys.argv[2] in ['-show', '--show']):
+        path_string = sys.argv[1]
+        show = True
+    else:
+        print('incorrect arguments')
+        exit()
+
+    path = Path(path_string)    
+    if not os.path.exists(path_string) or path_string in ["\\\\", "\\", '/', '//', '.', '..', '.\\', './']:
+        print('Directory '+path_string+' incorrect')
+        exit()
+
+    return path, show
+
+def main():
+    path, show = get_args()
+
+    #path = Path('c:\\example\\example')
+    #show = False
+
+    dir_names, file_names = get_all_files(path)
+    files_dict, ext_dict = sort_files(file_names)
+
+    if show:
+        print_files(files_dict, path)
+        exit()
+
+    print(path)
+    print('\nFound '+str(len(file_names))+' files')
+
+    for group in ext_dict.keys():
+        sum=0
+        unique_ext = set()
+        for ext in ext_dict.get(group):
+            sum+=ext_dict[group][ext]
+            unique_ext.add(ext)
+        print(str(sum)+' files type "'+group+'"')
+        print(*unique_ext)
+
+    #print('\n')
+    #while True:
+    #    user_apply = input('Sort? y or n\n>>> ')
+    #    if user_apply in ['y', 'n']:
+    #        if user_apply == 'y':
+    #            break
+    #        else:
+    #            exit()
+    #    print('please enter y or n')
+
+    print('\nprocessing files...') 
+
+    for group in files_dict.keys():
+        if group == 'images':
+            processing_images(files_dict[group], group, path)
+        if group == 'video':
+            processing_video(files_dict[group], group, path)
+        if group == 'audio':
+            processing_audio(files_dict[group], group, path)
+        if group == 'documents':
+            processing_documents(files_dict[group], group, path)
+        if group == 'archives':
+            processing_archives(files_dict[group], group, path)
+        if group == 'other':
+            processing_other(files_dict[group], group, path)
+
+    remove_empty_dir(dir_names)
+    print('done')
+    print(path)
+    exit()
+
+if __name__ == '__main__':
+    main()
