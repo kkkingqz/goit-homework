@@ -1,6 +1,7 @@
 from pathlib import Path
 import re, json, os, shutil, sys
 from collections import defaultdict
+from unicodedata import name
 
 def get_all_files(path, GROUP_DICT):
 #получаем список файлов и папок целевой директории
@@ -80,6 +81,96 @@ def normalize(file_name):
     new_name += file_name.suffix
 
     return new_name
+
+def simple_copy(files, group, path):
+#копирование и нормализация имен файлов
+
+    try:
+        os.makedirs(path.joinpath(group))
+    except FileExistsError:
+        print('directory "'+group+'" exists')
+    except PermissionError:
+        print('no permission to create directory')
+        return False
+
+    for file in files:
+        try:
+            file_ifexists_prefix=''
+            file_ifexists_prefix_i = 1
+            while os.path.exists(path.joinpath(group).joinpath(file_ifexists_prefix+normalize(file))):
+                file_ifexists_prefix = 'rename_'+str(file_ifexists_prefix_i)+'_'
+                file_ifexists_prefix_i+=1
+
+            shutil.copy(file, path.joinpath(group).joinpath(file_ifexists_prefix+normalize(file)))
+            os.remove(file)
+        except PermissionError:
+            print('No permission for: '+str(file))
+
+def remove_empty_dir(dir_list):
+#удаляем пустые директории. в не пустых - нормализация имени
+
+    #def pathsort(s):
+    #    return -len(s.parts)
+    dir_list.sort(key=lambda dir: -len(dir.parts))
+
+    for dir in dir_list:
+        try:
+            os.rmdir(dir)
+        except (PermissionError, OSError) as e:
+            try:
+                os.rename(d, d.parent.joinpath(normalize(dir.name)))
+            except (PermissionError, OSError) as ee:
+                pass
+
+#в соответствии с описанием задания - отдельные ф-ции для обработки
+#каждой категории. поскольку разной логики нет - они одинаковые
+def processing_images(files, group, path):
+    simple_copy(files, group, path)
+
+def processing_video(files, group, path):
+    simple_copy(files, group, path)
+
+def processing_audio(files, group, path):
+    simple_copy(files, group, path)
+
+def processing_documents(files, group, path):
+    simple_copy(files, group, path)
+
+def processing_else(files, group, path):
+#нормализация имени для файлов не попавших в категории
+
+    for file in files:
+        try:
+            os.rename(file,file.parent.joinpath(normalize(file)))
+        except PermissionError:
+            print('No permission for: '+str(file))
+
+def processing_archives(files, group, path):
+#распаковка архивов
+
+    try:
+        os.makedirs(path.joinpath(group))
+    except FileExistsError:
+        print('directory "'+group+'" exists')
+    except PermissionError:
+        print('no permission to create directory')
+        return False
+
+    for file in files:
+        #if f[0].name[:-7] == '.tar.gz':
+        #    f[1]='.tar.gz'
+        try:
+            file_ifexists_prefix=''
+            file_ifexists_prefix_i = 1
+            while os.path.exists(path.joinpath(group).joinpath(file_ifexists_prefix+normalize(file))):
+                file_ifexists_prefix = 'rename_'+str(file_ifexists_prefix_i)+'_'
+                file_ifexists_prefix_i+=1
+
+            os.makedirs(path.joinpath(group).joinpath(Path(file_ifexists_prefix+normalize(file)).stem))
+            shutil.unpack_archive(file, path.joinpath(group).joinpath(Path(file_ifexists_prefix+normalize(file)).stem))
+            os.remove(file)
+        except PermissionError:
+            print('No permission for: '+str(file))
 
 #не было в ТЗ ----------------------------------------
 def print_files(files_dict, path):
