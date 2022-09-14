@@ -180,9 +180,9 @@ def processing_archives(files, group, path):
         except PermissionError:
             print('No permission for: '+str(file))
 
-#не было в ТЗ ----------------------------------------
+
 def print_files(files_dict, path):
-#печать файлов по группам. запускается sort.py <PathToFolder> --show
+#печать имен файлов по группам
 
     def print_center(string):
         string = '   ' + string + '   '
@@ -213,7 +213,6 @@ def print_files(files_dict, path):
                 cr_file = crop_filename(file)
                 print('***  {:^40}  ***  {:^13}  *** {:^5} ***'.format(cr_file[0], cr_file[1], cr_file[2]))
     print('*'*80+'\n'+'*'*80+'\n'+'*'*80+'\n')
-#--------------------------------------------------------------------
 
 def get_args():
 #получаем параметры запуска. аргумент show - выводит список файлов по категориям, но ничего не копирует
@@ -263,7 +262,8 @@ def main():
         print(str(sum)+' files type "'+group+'"')
         print(*unique_ext)
 
-    #print('\n')
+    print('\n')
+    print_files(files_dict, path)
     #while True:
     #    user_apply = input('Sort? y or n\n>>> ')
     #    if user_apply in ['y', 'n']:
