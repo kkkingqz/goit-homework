@@ -18,7 +18,7 @@ def get_all_files(path):
 
     try:
         for file_or_dir in path.iterdir():
-            if file_or_dir.is_dir() and file_or_dir.name not in GROUP_DICT.keys():
+            if file_or_dir.is_dir() and file_or_dir.name not in GROUP_DICT:
                 dir_names.append(file_or_dir)
             if file_or_dir.is_file():
                 file_names.append(file_or_dir)
@@ -59,13 +59,10 @@ def sort_files(file_names):
         if file not in files_dict[group_name]:
             files_dict['other'].append(file)
 
-            #if not ext:
-            #    ext = 'no_ext'
-
             try:
-                ext_dict[group_name][ext] += 1
+                ext_dict['other'][ext] += 1
             except KeyError:
-                ext_dict[group_name][ext] = 1
+                ext_dict['other'][ext] = 1
             
     return files_dict, ext_dict
 
@@ -149,7 +146,7 @@ def processing_other(files, group, path):
 
     for file in files:
         try:
-            os.rename(file,normalize2(file))#file.parent.joinpath(normalize(file)))
+            os.rename(file,normalize2(file))
         except PermissionError:
             print('No permission for: '+str(file))
         except FileExistsError:
@@ -185,28 +182,33 @@ def print_files(files_dict, path):
 #печать имен файлов по группам
 
     def print_center(string):
+        target_string_len = 80
         string = '   ' + string + '   '
-        string = '*'*(40-len(string)//2) + string + '*'*(40-len(string)//2)
+        string = '*'*(target_string_len//2-len(string)//2) + string + '*'*(target_string_len//2-len(string)//2)
         return string[:len(string)-(len(string)%2)]
 
     def crop_filename(file):
         file_name = file.stem
-        if len(file_name)>43:
-            file_name=file_name[0:37]+'...'
+        target_filename_len = 43
+        target_dir_len = 13
+        target_ext_len = 5
+
+        if len(file_name) > target_filename_len:
+            file_name=file_name[0:target_filename_len - 6]+'...'
 
         file_dir = str(file.parent.relative_to(path))
-        if len(file_dir)>13:
-            file_dir='...'+file_dir[len(file_dir)-10:]
+        if len(file_dir) > target_dir_len:
+            file_dir='...'+file_dir[len(file_dir) - target_dir_len + 3:]
 
         file_ext = file.suffix or 'noext'
-        if len(file_ext)>5:
-            file_ext = file_ext[0:5]
+        if len(file_ext) > target_ext_len:
+            file_ext = file_ext[:-target_ext_len]
 
         return (file_name, file_dir, file_ext)
 
 
     print(path)
-    for group in files_dict.keys():
+    for group in files_dict:
         if group:
             print('*'*80+'\n'+print_center(group)+'\n'+'*'*80)
             for file in files_dict[group]:
@@ -240,8 +242,8 @@ def get_args():
 def main():
     path, show = get_args()
 
-    #path = Path('c:\\example\\example')
-    #show = False
+    #path = Path('c:\\users\\user\\documents')
+    #show = True
 
     dir_names, file_names = get_all_files(path)
     files_dict, ext_dict = sort_files(file_names)
@@ -253,7 +255,7 @@ def main():
     print(path)
     print('\nFound '+str(len(file_names))+' files')
 
-    for group in ext_dict.keys():
+    for group in ext_dict:
         sum=0
         unique_ext = set()
         for ext in ext_dict.get(group):
@@ -275,7 +277,7 @@ def main():
 
     print('\nprocessing files...') 
 
-    for group in files_dict.keys():
+    for group in files_dict:
         if group == 'images':
             processing_images(files_dict[group], group, path)
         if group == 'video':
