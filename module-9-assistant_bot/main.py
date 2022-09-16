@@ -106,10 +106,9 @@ def main():
             exit()
         command = parse_input(user_input)
 
-        if issubclass(type(command), (KeyError, ValueError, IndexError, str)):
-        #в чем отличие от: if isinstance(command, (str, KeyError, ValueError, IndexError)):
+        if isinstance(command, (str, Exception)):
             print(command)
-        elif issubclass(type(command), tuple):
+        elif isinstance(command, tuple):
             result = FUNC_DICT[command[0]](command[1])
             print(result)
             if result == 'Good bye!':
