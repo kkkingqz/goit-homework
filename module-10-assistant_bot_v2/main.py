@@ -2,38 +2,65 @@ import re
 from collections import UserDict
 
 class Field:
-    def __init__(self, value):
+    def __init__(self, value = ''):
         self.value = value
-
-class Phone(Field):
-    def __init__(self):
-        self.phone = ''
     def __repr__(self):
-        return self.phone
+        return self.value
+    def __eq__(self, other):
+        return self.value == other
+        
+class Phone(Field):
+    pass
 
 class Name(Field):
-    def __init__(self, name)
-        self.name = name
-    def __repr__(self):
-        return self.name
+    pass
     
 class Record:
     def __init__(self, name):
-        self.name = name
+        self.name = Name(name)
         self.phones = []
+    def __repr__(self):
+        return '\n'.join(map(lambda p: p.value, self.phones))
     def add_phone(self, phone):
-        self.phones.append(phone)
+        self.phones.append(Phone(phone))
     def remove_phone(self, phone):
-        self.phones.remove(phone)
+        self.phones.remove(Phone(phone))
     def change_phone(self, oldphone, newphone):
-        index = self.phones.index(oldphone)
-        self.phones[index] = newphone
+        try:
+            index = self.phones.index(Phone(oldphone))
+        except ValueError:
+            raise ValueError('phone not found') 
+        self.phones[index] = Phone(newphone)
 
 class AddressBook(UserDict):
-    def __init__(self):
-        pass
+    def add_record(self, name, phone):
+        if name in self.data: 
+            self.data[name].add_phone(phone)
+            return f'new phone for user {name} added'
+        else:
+            self.data[name] = Record(name)
+            self.data[name].add_phone(phone)
+            return f'user {name} added'
+    def change_record(self, name, oldphone, newphone):
+        try:
+            self.data[name].change_phone(oldphone, newphone)
+            return 'phone changed'
+        except KeyError:
+            return f'contact {name} not found'
 
+    def get_record(self, name):
+        return self.data.get(name) or 'no records'
 
+    def remove_record(self, name):
+        return self.data.pop(name)
+
+class User:
+    user_id = 1
+    def __init__(self, name):
+        self.name = name
+        self.address_book = AddressBook(dict())
+        self.id = User.user_id
+        User.user_id += 1
 
 def input_error(func):
     def inner(string):
@@ -60,21 +87,19 @@ def add(args_string):
     if not (isname(args[0]) and isphone(args[1])):
         raise ValueError('incorrect name or phone')
 
-    update_record(args[0], sanitize_phone_number(args[1]))
-    return f'user {args[0]} added'
+    return user.address_book.add_record(args[0], sanitize_phone_number(args[1]))
 
 @input_error
 def change(args_string):
     args = args_string.split()
 
-    if len(args) != 2:
-        raise ValueError('incorrect args\nplease enter: change <name> <phone>')
+    if len(args) != 3:
+        raise ValueError('incorrect args\nplease enter: change <name> <old phone> <new phone>')
 
-    if not (isname(args[0]) and isphone(args[1])):
+    if not (isname(args[0]) and isphone(args[1]) and isphone(args[2])):
         raise ValueError('incorrect name or phone')
 
-    update_record(args[0], sanitize_phone_number(args[1]))
-    return f'user {args[0]} changed'
+    return user.address_book.change_record(args[0], sanitize_phone_number(args[1]), sanitize_phone_number(args[2]))
 
 @input_error
 def phone(args_string):
@@ -86,15 +111,15 @@ def phone(args_string):
     if not isname(name):
         raise ValueError('incorrect name')
 
-    return get_record(name)
+    return user.address_book.get_record(name)
 
 @input_error
 def showall(args_string):
     if args_string:
         raise ValueError('incorrect args\nuse "show all" without args')
     str = ''
-    for name, phone in USERS_DICT.items():
-        str += f'{name}: {phone}\n'
+    for name in user.address_book:
+        str += f'{name}:\n{user.address_book.get_record(name)}\n'
     return str.rstrip('\n') or 'no records'
 
 @input_error
@@ -128,9 +153,6 @@ def parse_input(string):
 
     raise ValueError(result.split()[0]+' not a valid command')
     
-def update_record(name, phone):
-    USERS_DICT[name] = phone
-
 def get_record(name):
     return USERS_DICT.get(name) or f'user not found: {name}'
 
@@ -151,6 +173,7 @@ def main():
 
 FUNC_DICT={'hello': hello, 'add': add, 'change': change, 'phone': phone, 'show all': showall, 'exit': quit, 'good bye': quit, 'close': quit}
 USERS_DICT=dict()
+user = User('defaultuser')
 
 if __name__ == '__main__':
     main()
