@@ -1,4 +1,39 @@
 import re
+from collections import UserDict
+
+class Field:
+    def __init__(self, value):
+        self.value = value
+
+class Phone(Field):
+    def __init__(self):
+        self.phone = ''
+    def __repr__(self):
+        return self.phone
+
+class Name(Field):
+    def __init__(self, name)
+        self.name = name
+    def __repr__(self):
+        return self.name
+    
+class Record:
+    def __init__(self, name):
+        self.name = name
+        self.phones = []
+    def add_phone(self, phone):
+        self.phones.append(phone)
+    def remove_phone(self, phone):
+        self.phones.remove(phone)
+    def change_phone(self, oldphone, newphone):
+        index = self.phones.index(oldphone)
+        self.phones[index] = newphone
+
+class AddressBook(UserDict):
+    def __init__(self):
+        pass
+
+
 
 def input_error(func):
     def inner(string):
