@@ -1,66 +1,90 @@
 import re
-from collections import UserDict
+from collections import UserDict, UserString
 
-class Field:
-    def __init__(self, value = ''):
-        self.value = value
-    def __repr__(self):
-        return self.value
-    def __eq__(self, other):
-        return self.value == other
-        
+class Field(UserString):
+    def __init__(self, seq: object) -> None:
+        super().__init__(seq)
+        self.value = self.data #создаем value следуя букве ТЗ. так то тут это не нужно
+    def __format__(self, __format_spec: str) -> str:
+        return str.__format__(self.data, __format_spec)
+
 class Phone(Field):
     pass
 
 class Name(Field):
     pass
-    
+
 class Record:
-    def __init__(self, name):
+    def __init__(self, name, phone) -> None:
         self.name = Name(name)
-        self.phones = []
-    def __repr__(self):
-        return '\n'.join(map(lambda p: p.value, self.phones))
+
+        if isinstance(phone, str):
+            self.phones = [Phone(phone)]
+        elif isinstance(phone, list):
+            self.phones = [Phone(p) for p in phone]
+
     def add_phone(self, phone):
-        self.phones.append(Phone(phone))
-    def remove_phone(self, phone):
-        self.phones.remove(Phone(phone))
+        if isinstance(phone, str):
+            self.phones.append(Phone(phone))
+        elif isinstance(phone, list):
+            self.phones.extend([Phone(p) for p in phone])
+        return f'additional phone add for contact: {self.name}'
+
     def change_phone(self, oldphone, newphone):
         try:
             index = self.phones.index(Phone(oldphone))
         except ValueError:
             raise ValueError('phone not found') 
         self.phones[index] = Phone(newphone)
+        return 'phone change'
+
+    def remove_phone(self, phone):
+        try:
+            index = self.phones.index(Phone(phone))
+        except ValueError:
+            raise ValueError('phone not found') 
+        self.phones.pop(index)
+        return 'phone removed'
 
 class AddressBook(UserDict):
     def add_record(self, name, phone):
-        if name in self.data: 
-            self.data[name].add_phone(phone)
-            return f'new phone for user {name} added'
-        else:
-            self.data[name] = Record(name)
-            self.data[name].add_phone(phone)
-            return f'user {name} added'
-    def change_record(self, name, oldphone, newphone):
         try:
-            self.data[name].change_phone(oldphone, newphone)
-            return 'phone changed'
+            return self.data[name].add_phone(phone)
         except KeyError:
-            return f'contact {name} not found'
-
-    def get_record(self, name):
-        return self.data.get(name) or 'no records'
+            self.data[name] = Record(name, phone)
+            return f'contact {name} added'            
 
     def remove_record(self, name):
-        return self.data.pop(name)
+        if self.data.pop(name, None):
+            return f'contact {name} removed'
+        else:
+            return f'contact {name} not found'
 
-class User:
-    user_id = 1
-    def __init__(self, name):
-        self.name = name
-        self.address_book = AddressBook(dict())
-        self.id = User.user_id
-        User.user_id += 1
+    def change_record_phone(self, name, oldphone, newphone):
+        try:
+            return self.data[name].change_phone(oldphone, newphone)
+        except KeyError:
+            raise KeyError(f'contact {name} not found')
+
+    def show(self, name, maxlen=80):
+        result = '*'*maxlen+'\n'
+        result += ('|  {:^'+str(maxlen-6)+'}  |\n').format(self.data[name].name.upper())
+        result += '*'*maxlen+'\n'
+        for count, phone in enumerate(self.data[name].phones):
+            result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format('phone '+str(count+1), phone)
+            result += '-'*maxlen+'\n'
+        result = '\n'.join(result.split('\n')[:-2])
+        result += '\n'+'*'*maxlen+''
+        return result
+
+    def showall(self, maxlen=80):
+        result = ''
+        for contact in self.data:
+            result += self.show(contact, maxlen)+'\n'
+        return result
+
+
+
 
 def input_error(func):
     def inner(string):
@@ -81,13 +105,13 @@ def hello(args_string):
 def add(args_string):
     args = args_string.split()
 
-    if len(args) != 2:
+    if len(args) < 2:
         raise ValueError('incorrect args\nplease enter: add <name> <phone>')
 
     if not (isname(args[0]) and isphone(args[1])):
         raise ValueError('incorrect name or phone')
 
-    return user.address_book.add_record(args[0], sanitize_phone_number(args[1]))
+    return contacts.add_record(args[0], [*map(lambda p: sanitize_phone_number(p), args[1:])])
 
 @input_error
 def change(args_string):
@@ -99,7 +123,7 @@ def change(args_string):
     if not (isname(args[0]) and isphone(args[1]) and isphone(args[2])):
         raise ValueError('incorrect name or phone')
 
-    return user.address_book.change_record(args[0], sanitize_phone_number(args[1]), sanitize_phone_number(args[2]))
+    return contacts.change_record_phone(args[0], sanitize_phone_number(args[1]), sanitize_phone_number(args[2]))
 
 @input_error
 def phone(args_string):
@@ -111,16 +135,14 @@ def phone(args_string):
     if not isname(name):
         raise ValueError('incorrect name')
 
-    return user.address_book.get_record(name)
+    return contacts.show(name)
 
 @input_error
 def showall(args_string):
     if args_string:
         raise ValueError('incorrect args\nuse "show all" without args')
-    str = ''
-    for name in user.address_book:
-        str += f'{name}:\n{user.address_book.get_record(name)}\n'
-    return str.rstrip('\n') or 'no records'
+
+    return contacts.showall()
 
 @input_error
 def quit(args_string):
@@ -173,7 +195,7 @@ def main():
 
 FUNC_DICT={'hello': hello, 'add': add, 'change': change, 'phone': phone, 'show all': showall, 'exit': quit, 'good bye': quit, 'close': quit}
 USERS_DICT=dict()
-user = User('defaultuser')
+contacts = AddressBook(dict())
 
 if __name__ == '__main__':
     main()
