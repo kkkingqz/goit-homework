@@ -1,6 +1,6 @@
+from hashlib import new
 import re
 from collections import UserDict, UserString, defaultdict
-from unittest.mock import DEFAULT
 
 class Field(UserString):
     def __init__(self, seq: object) -> None:
@@ -18,57 +18,66 @@ class Name(Field):
 class EMail(Field):
     pass
 
-DEFAULT_FIELDS = {'phone': Phone, 'name': Name, 'email': EMail}
-
 class Record():
-    def __init__(self, name, field, values):
+    DEFAULT_FIELDS = {'phone': Phone, 'email': EMail}
+
+    def __init__(self, name, field_type='', values=''):
         self.name = Name(name)
         self.data = defaultdict(list)
 
-        self.data[field].extend(map(lambda v: (DEFAULT_FIELDS.get(field) or Field)(v), values))
-        print(self.data[field], type(self.data[field][0]))
-        
+        self.phones = self.data['phone']
+        self.emails = self.data['email']
 
-    def add_phone(self, phone):
-        if isinstance(phone, str):
-            self.phones.append(Phone(phone))
-        elif isinstance(phone, list):
-            self.phones.extend([Phone(p) for p in phone])
-        return f'additional phone add for contact: {self.name}'
+        if field_type and values:
+            self.add_field(field_type, values)
+   
+    def add_field(self, field_type, values):
+        self.data[field_type].extend(map(lambda v: Record.DEFAULT_FIELDS.get(field_type, Field)(v), values))
+        return f'add {field_type} for contact: {self.name}'
 
-    def change_phone(self, oldphone, newphone):
+    def change_field(self, field_type, oldvalue, newvalue):#oldphone, newphone):
         try:
-            index = self.phones.index(Phone(oldphone))
+            index = self.data[field_type].index(Record.DEFAULT_FIELDS.get(field_type, Field)(oldvalue))
         except ValueError:
-            raise ValueError('phone not found') 
-        self.phones[index] = Phone(newphone)
-        return 'phone change'
+            raise ValueError(f'{field_type} not found') 
+        self.data[field_type][index] = Record.DEFAULT_FIELDS.get(field_type, Field)(newvalue)
+        return f'{field_type} change'
 
-    def remove_phone(self, phone):
+    def remove_field(self, field_type, value):
         try:
-            index = self.phones.index(Phone(phone))
+            index = self.data[field_type].index(Record.DEFAULT_FIELDS.get(field_type, Field)(value))
         except ValueError:
-            raise ValueError('phone not found') 
-        self.phones.pop(index)
-        return 'phone removed'
+            raise ValueError(f'{field_type} not found') 
+        self.data[field_type].pop(index)
+        return f'{field_type} removed'
+
+    def remove_field_type(self, field_type):
+        if not field_type in self.data:
+            raise ValueError(f'{field_type} not found')
+        self.data.pop(field_type)
+        return f'{field_type}s removed'
 
 class AddressBook(UserDict):
-    def add_record(self, name, field, *values):
-        self.data[name] = Record(name, field, values)
+    def add_record(self, name, field_type='', *values):
+        if name not in self.data:
+            self.data[name] = Record(name, field_type, values)
+            return f'contact {name} created'
+
+        return self.data[name].add_field(field_type, values)
 
     def remove_record(self, name):
-        if self.data.pop(name, None):
+        if self.data.pop(name):
             return f'contact {name} removed'
         else:
             return f'contact {name} not found'
 
-    def change_record_phone(self, name, oldphone, newphone):
+    def change_record_field(self, name, field, oldvalue, newvalue):
         try:
-            return self.data[name].change_phone(oldphone, newphone)
+            return self.data[name].change_field(field, oldvalue, newvalue)
         except KeyError:
             raise KeyError(f'contact {name} not found')
 
-    def show(self, name, maxlen=80):
+    def show(self, name, field='', maxlen=80):
         result = '*'*maxlen+'\n'
         result += ('|  {:^'+str(maxlen-6)+'}  |\n').format(self.data[name].name.upper())
         result += '*'*maxlen+'\n'
