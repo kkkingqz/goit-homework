@@ -1,5 +1,6 @@
 import re
-from collections import UserDict, UserString
+from collections import UserDict, UserString, defaultdict
+from unittest.mock import DEFAULT
 
 class Field(UserString):
     def __init__(self, seq: object) -> None:
@@ -14,14 +15,19 @@ class Phone(Field):
 class Name(Field):
     pass
 
-class Record:
-    def __init__(self, name, phone) -> None:
-        self.name = Name(name)
+class EMail(Field):
+    pass
 
-        if isinstance(phone, str):
-            self.phones = [Phone(phone)]
-        elif isinstance(phone, list):
-            self.phones = [Phone(p) for p in phone]
+DEFAULT_FIELDS = {'phone': Phone, 'name': Name, 'email': EMail}
+
+class Record():
+    def __init__(self, name, field, values):
+        self.name = Name(name)
+        self.data = defaultdict(list)
+
+        self.data[field].extend(map(lambda v: (DEFAULT_FIELDS.get(field) or Field)(v), values))
+        print(self.data[field], type(self.data[field][0]))
+        
 
     def add_phone(self, phone):
         if isinstance(phone, str):
@@ -47,12 +53,8 @@ class Record:
         return 'phone removed'
 
 class AddressBook(UserDict):
-    def add_record(self, name, phone):
-        try:
-            return self.data[name].add_phone(phone)
-        except KeyError:
-            self.data[name] = Record(name, phone)
-            return f'contact {name} added'            
+    def add_record(self, name, field, *values):
+        self.data[name] = Record(name, field, values)
 
     def remove_record(self, name):
         if self.data.pop(name, None):
@@ -108,10 +110,10 @@ def add(args_string):
     if len(args) < 2:
         raise ValueError('incorrect args\nplease enter: add <name> <phone>')
 
-    if not (isname(args[0]) and isphone(args[1])):
-        raise ValueError('incorrect name or phone')
-
-    return contacts.add_record(args[0], [*map(lambda p: sanitize_phone_number(p), args[1:])])
+    #if not (isname(args[0]) and isphone(args[1])):
+    #    raise ValueError('incorrect name or phone')
+    #print(args[1:0])
+    return contacts.add_record(args[0], *args[1:])#*map(lambda p: p, args[1:]))#[*map(lambda p: sanitize_phone_number(p), args[1:])])
 
 @input_error
 def change(args_string):
@@ -151,6 +153,7 @@ def quit(args_string):
     return 'Good bye!'
 
 def check_input(string):
+    return True
     return not re.search(r'[^A-Za-z0-9\.\,\s\+]', string)
 
 def isname(string):
