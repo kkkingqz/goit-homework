@@ -1,4 +1,4 @@
-from hashlib import new
+from ast import arg
 import re
 from collections import UserDict, UserString, defaultdict
 
@@ -21,7 +21,7 @@ class EMail(Field):
 class Record():
     DEFAULT_FIELDS = {'phone': Phone, 'email': EMail}
 
-    def __init__(self, name, field_type='', values=''):
+    def __init__(self, name, field_type='', values=[]):
         self.name = Name(name)
         self.data = defaultdict(list)
 
@@ -33,7 +33,7 @@ class Record():
    
     def add_field(self, field_type, values):
         self.data[field_type].extend(map(lambda v: Record.DEFAULT_FIELDS.get(field_type, Field)(v), values))
-        return f'add {field_type} for contact: {self.name}'
+        return f'added {field_type} for contact: {self.name}'
 
     def change_field(self, field_type, oldvalue, newvalue):#oldphone, newphone):
         try:
@@ -71,19 +71,27 @@ class AddressBook(UserDict):
         else:
             return f'contact {name} not found'
 
-    def change_record_field(self, name, field, oldvalue, newvalue):
+    def change_record_field(self, name, field_type, oldvalue, newvalue):
         try:
-            return self.data[name].change_field(field, oldvalue, newvalue)
+            return self.data[name].change_field(field_type, oldvalue, newvalue)
         except KeyError:
             raise KeyError(f'contact {name} not found')
 
-    def show(self, name, field='', maxlen=80):
+    def show(self, name, field_type='', maxlen=80):
         result = '*'*maxlen+'\n'
         result += ('|  {:^'+str(maxlen-6)+'}  |\n').format(self.data[name].name.upper())
         result += '*'*maxlen+'\n'
-        for count, phone in enumerate(self.data[name].phones):
-            result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format('phone '+str(count+1), phone)
-            result += '-'*maxlen+'\n'
+
+        if field_type:
+            for count, value in enumerate(self.data[name][field_type]):
+                result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format(f'{field_type} '+str(count+1), value)
+                result += '-'*maxlen+'\n'
+        else:
+            for field_type in self.data[name]:
+                for count, value in enumerate(self.data[name][field_type]):
+                    result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format(f'{field_type} '+str(count+1), value)
+                    result += '-'*maxlen+'\n'
+
         result = '\n'.join(result.split('\n')[:-2])
         result += '\n'+'*'*maxlen+''
         return result
@@ -116,28 +124,43 @@ def hello(args_string):
 def add(args_string):
     args = args_string.split()
 
+    if args[0] == 'help':
+        return 'use:\n   add <name> <phone> or add <name> <field type> <value> [<value2>, ...]'
+    
     if len(args) < 2:
-        raise ValueError('incorrect args\nplease enter: add <name> <phone>')
+        raise ValueError('incorrect args\nplease enter: add <name> <phone> or add <name> <field type> <value> [<value2>, ...]')
 
-    #if not (isname(args[0]) and isphone(args[1])):
-    #    raise ValueError('incorrect name or phone')
-    #print(args[1:0])
-    return contacts.add_record(args[0], *args[1:])#*map(lambda p: p, args[1:]))#[*map(lambda p: sanitize_phone_number(p), args[1:])])
+    if not isname(args[0]):
+        raise ValueError('incorrect name')
+
+    if len(args) == 2:
+        return contacts.add_record(args[0], 'phone', args[1])
+    
+    return contacts.add_record(args[0], args[1], *args[2:])
 
 @input_error
 def change(args_string):
     args = args_string.split()
 
-    if len(args) != 3:
-        raise ValueError('incorrect args\nplease enter: change <name> <old phone> <new phone>')
+    if args[0] == 'help':
+        return 'use:\n   change <name> <old phone> <new phone>\n   or\n   change <name> <field type> <old value> <new value>'
 
-    if not (isname(args[0]) and isphone(args[1]) and isphone(args[2])):
-        raise ValueError('incorrect name or phone')
+    if len(args) < 3 or len(args) > 4:
+        raise ValueError('incorrect args\nplease enter: change <name> <old phone> <new phone>\n   or\n   change <name> <field type> <old value> <new value>')
 
-    return contacts.change_record_phone(args[0], sanitize_phone_number(args[1]), sanitize_phone_number(args[2]))
+    if not isname(args[0]):
+        raise ValueError('incorrect name')
+
+    if len(args) == 3:
+        return contacts.change_record_field(args[0], 'phone', args[1], args[2])
+
+    return contacts.change_record_field(*args)
 
 @input_error
 def phone(args_string):
+    if args_string == 'help':
+        return 'use:\n   phone <name>'
+
     if len(args_string.split()) != 1:
         raise ValueError('please enter a name')
 
@@ -146,7 +169,22 @@ def phone(args_string):
     if not isname(name):
         raise ValueError('incorrect name')
 
-    return contacts.show(name)
+    return contacts.show(name, 'phone')
+
+@input_error
+def show(args_string):
+    args = args_string.split()
+
+    if args[0] == 'help':
+        return 'use:\n   show <name>\n   or\n   show <name> <field type>'
+
+    if len(args) > 2:
+        raise ValueError('incorrect args\nplease enter:\n   show <name>\n   or\n   show <name> <field type>')
+
+    if not isname(args[0]):
+        raise ValueError('incorrect name')
+
+    return contacts.show(*args)
 
 @input_error
 def showall(args_string):
@@ -154,6 +192,31 @@ def showall(args_string):
         raise ValueError('incorrect args\nuse "show all" without args')
 
     return contacts.showall()
+
+@input_error
+def remove(args_string):
+    args = args_string.split()
+
+    if args[0] == 'help':
+        return 'use:\n   remove <name>\n   or\n   remove <name> <field type>\n   or\n   remove <name> <field type> <value> [<value2>, ...]'
+
+    if not isname(args[0]):
+        raise ValueError('incorrect name')
+
+    if len(args) > 3:
+        raise ValueError('incorrect args\nplease enter:\n   remove <name>\n   or\n   remove <name> <field type>\n   or\n   remove <name> <field type> <value> [<value2>, ...]')
+
+    if len(args) == 1:
+        return contacts.remove_record(args[0])
+
+    try:
+        if len(args) == 2:
+            return contacts[args[0]].remove_field_type(args[1])
+
+        if len(args) == 3:
+            return contacts[args[0]].remove_field(args[1], args[2])
+    except KeyError:
+        raise KeyError(f'user {args[0]} not found')
 
 @input_error
 def quit(args_string):
