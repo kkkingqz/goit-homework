@@ -1,16 +1,17 @@
-from ast import arg
 import re
 from collections import UserDict, UserString, defaultdict
 
 class Field(UserString):
     def __init__(self, seq: object) -> None:
         super().__init__(seq)
-        self.value = self.data #создаем value следуя букве ТЗ. так то тут это не нужно
+        self.value = self.data
     def __format__(self, __format_spec: str) -> str:
         return str.__format__(self.data, __format_spec)
 
 class Phone(Field):
-    pass
+    def __init__(self, seq: object) -> None:
+        super().__init__(seq)
+        self.data = self.data.replace(' ','').replace('(','').replace(')','').replace('+','').replace('-','')
 
 class Name(Field):
     pass
@@ -66,10 +67,11 @@ class AddressBook(UserDict):
         return self.data[name].add_field(field_type, values)
 
     def remove_record(self, name):
-        if self.data.pop(name):
+        try:
+            self.data.pop(name)
             return f'contact {name} removed'
-        else:
-            return f'contact {name} not found'
+        except KeyError:
+            raise KeyError(f'contact {name} not found')
 
     def change_record_field(self, name, field_type, oldvalue, newvalue):
         try:
@@ -77,18 +79,18 @@ class AddressBook(UserDict):
         except KeyError:
             raise KeyError(f'contact {name} not found')
 
-    def show(self, name, field_type='', maxlen=80):
+    def show(self, name, maxlen=80, field_type=''):
         result = '*'*maxlen+'\n'
         result += ('|  {:^'+str(maxlen-6)+'}  |\n').format(self.data[name].name.upper())
         result += '*'*maxlen+'\n'
 
         if field_type:
-            for count, value in enumerate(self.data[name][field_type]):
+            for count, value in enumerate(self.data[name].data[field_type]):
                 result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format(f'{field_type} '+str(count+1), value)
                 result += '-'*maxlen+'\n'
         else:
-            for field_type in self.data[name]:
-                for count, value in enumerate(self.data[name][field_type]):
+            for field_type in self.data[name].data:
+                for count, value in enumerate(self.data[name].data[field_type]):
                     result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format(f'{field_type} '+str(count+1), value)
                     result += '-'*maxlen+'\n'
 
@@ -231,11 +233,8 @@ def check_input(string):
 def isname(string):
     return not re.search(r'[^A-Za-z]', string)
 
-def sanitize_phone_number(phone):
-    return phone.replace(' ','').replace('(','').replace(')','').replace('+','').replace('-','')
-
-def isphone(string):
-    return not re.search(r'[^0-9]', sanitize_phone_number(string))
+#def isphone(string):
+#    return not re.search(r'[^0-9]', sanitize_phone_number(string))
 
 @input_error
 def parse_input(string):
@@ -250,8 +249,8 @@ def parse_input(string):
 
     raise ValueError(result.split()[0]+' not a valid command')
     
-def get_record(name):
-    return USERS_DICT.get(name) or f'user not found: {name}'
+#def get_record(name):
+#    return USERS_DICT.get(name) or f'user not found: {name}'
 
 def main():
     while True:
@@ -268,8 +267,8 @@ def main():
             if result == 'Good bye!':
                 exit()
 
-FUNC_DICT={'hello': hello, 'add': add, 'change': change, 'phone': phone, 'show all': showall, 'exit': quit, 'good bye': quit, 'close': quit}
-USERS_DICT=dict()
+FUNC_DICT={'hello': hello, 'add': add, 'change': change, 'phone': phone, 'show all': showall, 'exit': quit, 'good bye': quit, 'close': quit, 'show': show, 'remove': remove}
+#USERS_DICT=dict()
 contacts = AddressBook(dict())
 
 if __name__ == '__main__':
