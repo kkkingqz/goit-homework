@@ -79,11 +79,12 @@ class AddressBook(UserDict):
         except KeyError:
             raise KeyError(f'contact {name} not found')
 
-    def show(self, name, maxlen=80, field_type=''):
+    def show(self, name, field_type=''):
+        maxlen=80
         result = '*'*maxlen+'\n'
         result += ('|  {:^'+str(maxlen-6)+'}  |\n').format(self.data[name].name.upper())
         result += '*'*maxlen+'\n'
-
+        
         if field_type:
             for count, value in enumerate(self.data[name].data[field_type]):
                 result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format(f'{field_type} '+str(count+1), value)
@@ -98,10 +99,10 @@ class AddressBook(UserDict):
         result += '\n'+'*'*maxlen+''
         return result
 
-    def showall(self, maxlen=80):
+    def showall(self):
         result = ''
         for contact in self.data:
-            result += self.show(contact, maxlen)+'\n'
+            result += self.show(contact)+'\n'
         return result
 
 
@@ -171,7 +172,7 @@ def phone(args_string):
     if not isname(name):
         raise ValueError('incorrect name')
 
-    return contacts.show(name, 'phone')
+    return contacts.show(name, field_type='phone')
 
 @input_error
 def show(args_string):
