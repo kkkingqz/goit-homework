@@ -1,17 +1,44 @@
 import re
 from collections import UserDict, UserString, defaultdict
+from datetime import date, datetime, timedelta
+
+try:
+    import dateutil.parser as Dateparse
+except ModuleNotFoundError:
+    print('Please install python module "dateutil". pip install python-dateutil')
+    class Dateparse():
+        def parse(string):
+            return datetime.strptime(string, '%Y-%m-%d')
 
 class Field(UserString):
     def __init__(self, seq: object) -> None:
         super().__init__(seq)
-        self.value = self.data
+        self.__value = ''
+        self.value = seq
+
     def __format__(self, __format_spec: str) -> str:
-        return str.__format__(self.data, __format_spec)
+        return str.__format__(self.value, __format_spec)
+        
+    @property
+    def value(self):
+        return self.__value
+    @value.setter
+    def value(self, string):
+        self.__value = string
+
+#убираем стандартное поле data. наследование от userstring, необходимо для того что б работали стандартные str методы lower, upper и т д
+    @property
+    def data(self):
+        return self.value
+    @data.setter
+    def data(self, value):
+        pass
+#----------------------------------------------
 
 class Phone(Field):
     def __init__(self, seq: object) -> None:
         super().__init__(seq)
-        self.data = self.data.replace(' ','').replace('(','').replace(')','').replace('+','').replace('-','')
+        self.value = self.value.replace(' ','').replace('(','').replace(')','').replace('+','').replace('-','')
 
 class Name(Field):
     pass
@@ -31,6 +58,14 @@ class Record():
 
         if field_type and values:
             self.add_field(field_type, values)
+
+    def __iter__(self):
+        self.n = 0
+        return self
+
+    #def __next__(self):
+    #    if self.n <
+
    
     def add_field(self, field_type, values):
         self.data[field_type].extend(map(lambda v: Record.DEFAULT_FIELDS.get(field_type, Field)(v), values))
@@ -229,7 +264,7 @@ def quit(args_string):
 
 def check_input(string):
     #return True
-    return not re.search(r'[^A-Za-z0-9\.\,\s\+]', string)
+    return not re.search(r'[^A-Za-z0-9@\-\.\,\s\+]', string)
 
 def isname(string):
     return not re.search(r'[^A-Za-z]', string)
@@ -253,7 +288,24 @@ def parse_input(string):
 #def get_record(name):
 #    return USERS_DICT.get(name) or f'user not found: {name}'
 
+def add_default_records():
+    records = ['add Ivan phone 0551112233 0320112299 0118885566',
+    'add Ivan email ivan@gmail.com test@i.ua',
+    'add Ivan birthday 01-09-2001',
+    'add Kate phone 0638885532 0935550112',
+    'add Kate email kate@gmail.com',
+    'add Kate birthday 23-09-2004',
+    'add Kate note somethingabout',
+    'add Max 0321515822',
+    'add Max email max@gmail.com']
+    for record in records:
+        command = parse_input(record)        
+        FUNC_DICT[command[0]](command[1])
+
 def main():
+    #test
+    add_default_records()
+
     while True:
         user_input = input('>>> ')
         if user_input ==  '.':
@@ -269,7 +321,6 @@ def main():
                 exit()
 
 FUNC_DICT={'hello': hello, 'add': add, 'change': change, 'phone': phone, 'show all': showall, 'exit': quit, 'good bye': quit, 'close': quit, 'show': show, 'remove': remove}
-#USERS_DICT=dict()
 contacts = AddressBook(dict())
 
 if __name__ == '__main__':
