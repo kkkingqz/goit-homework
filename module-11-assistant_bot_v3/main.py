@@ -7,13 +7,20 @@ try:
 except ModuleNotFoundError:
     print('Please install python module "dateutil". pip install python-dateutil')
     class Dateparse():
+        class _parser():
+            class ParserError(Exception):
+                pass
         def parse(string):
-            return datetime.strptime(string, '%Y-%m-%d')
+            try:
+                return datetime.strptime(string, '%Y-%m-%d')
+            except ValueError:
+                raise Dateparse._parser.ParserError
 
 class Field(UserString):
     def __init__(self, seq: object) -> None:
         super().__init__(seq)
-        self.__value = ''
+        self.__value = None
+        self.data = None
         self.value = seq
 
     def __format__(self, __format_spec: str) -> str:
@@ -46,8 +53,25 @@ class Name(Field):
 class EMail(Field):
     pass
 
+class Birthday(Field):
+    @property
+    def birthday_current_year(self):
+        return date(year=datetime.now().year, month=self.__value.month, day=self.__value.day)
+    @property
+    def birthday(self):
+        return self.__value
+    @property
+    def value(self):
+        return date.strftime(self.__value, '%Y-%m-%d')
+    @value.setter
+    def value(self, string):
+        try:
+            self.__value = Dateparse.parse(string).date()
+        except Dateparse._parser.ParserError:
+            raise ValueError('incorrect date format. enter yyyy-mm-dd')
+            
 class Record():
-    DEFAULT_FIELDS = {'phone': Phone, 'email': EMail}
+    DEFAULT_FIELDS = {'phone': Phone, 'email': EMail, 'birthday': Birthday}
 
     def __init__(self, name, field_type='', values=[]):
         self.name = Name(name)
@@ -60,14 +84,22 @@ class Record():
             self.add_field(field_type, values)
 
     def __iter__(self):
-        self.n = 0
+        self.n = -1
         return self
 
-    #def __next__(self):
-    #    if self.n <
-
+    def __next__(self):
+        keys = list(self.data.keys())
+        if self.n < len(keys)-1:
+            self.n += 1
+            return keys[self.n]
+        else:
+            self.n = -1
+            raise StopIteration
    
     def add_field(self, field_type, values):
+        if field_type == 'birthday' and ((len(values) > 1) or self.data[field_type]):
+            raise ValueError('only one birthday available')
+
         self.data[field_type].extend(map(lambda v: Record.DEFAULT_FIELDS.get(field_type, Field)(v), values))
         return f'added {field_type} for contact: {self.name}'
 
@@ -125,14 +157,27 @@ class AddressBook(UserDict):
                 result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format(f'{field_type} '+str(count+1), value)
                 result += '-'*maxlen+'\n'
         else:
-            for field_type in self.data[name].data:
+            for field_type in self.data[name]:
                 for count, value in enumerate(self.data[name].data[field_type]):
                     result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format(f'{field_type} '+str(count+1), value)
                     result += '-'*maxlen+'\n'
 
         result = '\n'.join(result.split('\n')[:-2])
-        result += '\n'+'*'*maxlen+''
+        result += '\n'+'*'*maxlen+'\n'
         return result
+
+    def iterator(self, n):
+        current_records = 0
+        keys = list(self.keys())
+        while current_records < len(self):
+            result = ''
+            for nn in range(n):
+                try:
+                    result += self.show(keys[current_records])
+                except IndexError:
+                    pass
+                current_records += 1
+            yield result
 
     def showall(self):
         result = ''
@@ -305,6 +350,8 @@ def add_default_records():
 def main():
     #test
     add_default_records()
+    for a in contacts.iterator(2):
+        print(a)
 
     while True:
         user_input = input('>>> ')
@@ -324,4 +371,5 @@ FUNC_DICT={'hello': hello, 'add': add, 'change': change, 'phone': phone, 'show a
 contacts = AddressBook(dict())
 
 if __name__ == '__main__':
+
     main()
