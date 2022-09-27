@@ -186,7 +186,6 @@ def input_error(func):
             ret = func(string)
             return ret
         except (KeyError, ValueError, IndexError) as err:
-            print(func.__name__)
             if func.__name__ in ('change', 'phone', 'show', 'remove', 'birthday'):
                 return 'record not found'
             return err
@@ -295,7 +294,7 @@ def add_default_records():
         FUNC_DICT[command[0]](command[1])
 
 def main():
-    add_default_records()
+    #add_default_records()
     while True:
         user_input = input('>>> ')
         if user_input ==  '.':
