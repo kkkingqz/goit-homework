@@ -1,7 +1,6 @@
-import re, pickle, copy
+import re
 from collections import UserDict, defaultdict
 from datetime import date, datetime
-
 
 try:
     import dateutil.parser as Dateparse
@@ -48,7 +47,7 @@ class Phone(Field):
 
     @property
     def value(self):
-        return self.__value
+        return f'({self.__value[:3]}) {self.__value[3:]}'
     @value.setter
     def value(self, value):
         if not re.search(r'[^0-9]', self.sanitize_phone_number(value)):
@@ -57,9 +56,6 @@ class Phone(Field):
             raise ValueError('incorrect phone number')
 
 class Name(Field):
-    pass
-
-class EMail(Field):
     pass
 
 class Birthday(Field):
@@ -75,113 +71,70 @@ class Birthday(Field):
     @value.setter
     def value(self, string):
         try:
-            self.__value = Dateparse.parse(string).date() #see line 7
+            self.__value = Dateparse.parse(string).date()
         except Dateparse._parser.ParserError:
             raise ValueError('incorrect date format. enter yyyy-mm-dd')
 
 class Record():
-    DEFAULT_FIELDS = {'phone': Phone, 'email': EMail, 'birthday': Birthday}
 
-    def __init__(self, name, field_type='', values=[]):
+    def __init__(self, name, phones):
         self.name = Name(name)
-        self.data = defaultdict(list)
+        self.phones = list()
+        self.birthday = None
+        self.add_phones(phones)
+    
+    def add_phones(self, phones):
+        self.phones.extend(map(lambda v: Phone(v), phones))
+        return f'added phones for contact: {self.name}'
 
-        self.phones = self.data['phones']
-        self.birthday = self.data['bitrhday']
-        self.emails = self.data['email']
+    def add_birthday(self, birthday):
+        self.birthday = Birthday(birthday)
+        return f'added birhday for contact: {self.name}'
 
-        if field_type and values:
-            self.add_field(field_type, values)
-   
-    def get_field_type(self, field_type):
-        return Record.DEFAULT_FIELDS.get(field_type, Field)
+    def change_phone(self, oldvalue, newvalue):
+        index = self.phones.index(Phone(oldvalue))
+        self.phones[index] = Phone(newvalue)
+        return f'Phone change'
 
-    def add_field(self, field_type, values):
-        if field_type == 'birthday' and ((len(values) > 1) or self.data[field_type]):
-            raise ValueError('only one birthday available')
-
-        self.data[field_type].extend(map(lambda v: self.get_field_type(field_type)(v), values))
-        return f'added {field_type} for contact: {self.name}'
-
-    def change_field(self, field_type, oldvalue, newvalue):
-        index = self.data[field_type].index(self.get_field_type(field_type)(oldvalue))
-        self.data[field_type][index] = self.get_field_type(field_type)(newvalue)
-        return f'{field_type} change'
-
-    def remove_field(self, field_type, value):
-        print(field_type, value)
-        print(self.get_field_type(field_type))
-        index = self.data[field_type].index(self.get_field_type(field_type)(value))
-        print(index)
-        self.data[field_type].pop(index)
-        return f'{field_type} removed'
-
-    def remove_field_type(self, field_type):
-        self.data.pop(field_type)
-        return f'{field_type}s removed'
+    def remove_phone(self, value):
+        index = self.phones.index(Phone(value))
+        self.phones.pop(index)
+        return f'phone removed'
 
     def days_to_birthday(self):
         today = date.today()
-        current_year_bd = self.data['birthday'][0].birthday_current_year
+        current_year_bd = self.birthday.birthday_current_year
         days = str((current_year_bd - today).days)
         return f'today is {today}. {self.name} birthday day in current year - {current_year_bd}\n{days} day(s)'
 
 class AddressBook(UserDict):
-    def __getattribute__(self, item):
-        if not item.startswith('__'):
-            ret = super().__getattribute__(item)
-            with open('data.bin', "wb") as fh:
-                pickle.dump(self, fh)
-            return ret
-        else:
-            return super().__getattribute__(item)
-
-    def add_record(self, name, field_type='', *values):
+    def add_record(self, name, *phones):
         if name not in self.data:
-            self.data[name] = Record(name, field_type, values)
+            self.data[name] = Record(name, phones)
             return f'contact {name} created'
 
-        return self.data[name].add_field(field_type, values)
+        return self.data[name].add_phones(phones)
 
     def remove_record(self, name):
         self.data.pop(name)
         return f'contact {name} removed'
 
-    def change_record_field(self, name, field_type, oldvalue, newvalue):
-        return self.data[name].change_field(field_type, oldvalue, newvalue)
-
-    def show(self, name, field_type=''):
+    def show(self, name):
         maxlen=80
         result = '*'*maxlen+'\n'
         result += ('|  {:^'+str(maxlen-6)+'}  |\n').format(self.data[name].name.upper())
         result += '*'*maxlen+'\n'
         
-        if field_type:
-            for count, value in enumerate(self.data[name].data[field_type]):
-                result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format(f'{field_type} '+str(count+1), value)
-                result += '-'*maxlen+'\n'
-        else:
-            for field_type in self.data[name].data:
-                for count, value in enumerate(self.data[name].data[field_type]):
-                    result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format(f'{field_type} '+str(count+1), value)
-                    result += '-'*maxlen+'\n'
+        for count, value in enumerate(self.data[name].phones):
+            result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format(str(count+1), value)
+            result += '-'*maxlen+'\n'
+        result += ('|  {:^10}  |  {:^'+str(maxlen-21)+'}  |\n').format('birthday', self.data[name].birthday)
 
         result = '\n'.join(result.split('\n')[:-2])
         result += '\n'+'*'*maxlen+''
         return result
 
     def iterator(self, n):
-        '''current_record = 0
-        keys = list(self.keys())
-        while current_records < len(self):
-            result = ''
-            for nn in range(n):
-                try:
-                    result += self.show(keys[current_record])+'\n'
-                except IndexError:
-                    pass
-                current_record += 1
-            yield result'''
         result = ''
         for i, key in enumerate(self.keys()):
             result += self.show(key)+'\n'
@@ -236,22 +189,29 @@ def hello(args_string):
 
 @input_error
 def add(args_string):
-    args = processing_args(args_string, 3, 99, 'use:\n   add <name> <field type> <value> [<value2>, ...]')    
+    args = processing_args(args_string, 3, 99, 'use:\n   add <name> <phone> [<phone2>, ...]\n   add <name> birthday <birthday>')    
+    if args[1] == 'birthday' and len(args) == 3:
+        return contacts[args[0]].add_birthday(args[2]) 
     return contacts.add_record(*args)
 
 @input_error
 def change(args_string):
-    args = processing_args(args_string, 4, 4, 'use:\n   change <name> <field type> <old value> <new value>')    
-    return contacts.change_record_field(*args)
+    args = processing_args(args_string, 3, 4, 'use:\n   change <name> phohe <old value> <new value>\n or \n   change <name> birthday <new value>')    
+    if args[1] == 'phone':
+        return contacts[args[0]].change_phone(args[2], args[3])
+    elif args[1] == 'birthday':
+        return contacts[args[0]].add_birhday(args[2])
+    else:
+        raise ValueError('incorrect')
 
 @input_error
 def phone(args_string):
     args = processing_args(args_string, 1, 1, 'use:\n   phone <name>')
-    return contacts.show(args[0], field_type='phone')
+    return contacts.show(args[0])
 
 @input_error
 def show(args_string):
-    args = processing_args(args_string, 1, 2, 'use:\n   show <name>\nor\n   show <name> <field type>')
+    args = processing_args(args_string, 1, 1, 'use:\n   show <name>')
     return contacts.show(*args)
 
 @input_error
@@ -261,16 +221,9 @@ def showall(args_string):
 
 @input_error
 def remove(args_string):
-    args = processing_args(args_string, 1, 3, 'use:\n   remove <name>\n   or\n   remove <name> <field type>\n   or\n   remove <name> <field type> <value>')
+    args = processing_args(args_string, 1, 1, 'use:\n   remove <name>\n   or\n   remove <name> <field type>\n   or\n   remove <name> <field type> <value>')
 
-    if len(args) == 1:
-        return contacts.remove_record(args[0])
-
-    if len(args) == 2:
-        return contacts[args[0]].remove_field_type(args[1])
-
-    if len(args) == 3:
-        return contacts[args[0]].remove_field(args[1], args[2])
+    return contacts.remove_record(args[0])
 
 @input_error
 def quit(args_string):
@@ -282,6 +235,7 @@ def birthday(args_string):
     args = processing_args(args_string, 1, 1, 'use: birthday <name>')
     return contacts[args[0]].days_to_birthday()
 
+@input_error
 def parse_input(string):
     if re.search(r'[^A-Za-z0-9@\-\.\,\s\+]', string):
         raise ValueError('"'+string+'" not a valid command\nunsupported chars') 
@@ -295,23 +249,19 @@ def parse_input(string):
 
 
 def add_default_records():
-    records = ['add Ivan phone 0551112233 0320112299 0118885566',
-    'add Ivan email ivan@gmail.com test@i.ua',
+    records = ['add Ivan 0551112233 0320112299 0118885566',
     'add Ivan birthday 01-09-2001',
-    'add Kate phone 0638885532 0935550112',
-    'add Kate email kate@gmail.com',
+    'add Kate 0638885532 0935550112',
     'add Kate birthday 23-09-2004',
-    'add Kate note somethingabout',
-    'add Max phone 0321515822',
-    'add Max email max@gmail.com',
-    'add Krysta phone 0912225566 0935556667 0995812244',
+    'add Max 0321515822',
+    'add Krysta 0912225566 0935556667 0995812244',
     'add Krysta birthday 09-03-1980']
     for record in records:
         command = parse_input(record)        
         FUNC_DICT[command[0]](command[1])
 
 def main():
-    #add_default_records()
+    add_default_records()
     while True:
         user_input = input('>>> ')
         if user_input ==  '.':
@@ -329,10 +279,7 @@ def main():
 FUNC_DICT=  {'hello': hello, 'add': add, 'change': change, 'phone': phone,
             'show all': showall, 'exit': quit, 'good bye': quit, 'close': quit,
             'show': show, 'remove': remove, 'birthday': birthday}
-#contacts = AddressBook(dict())
-with open('data.bin', "rb") as fh:
-        contacts = pickle.load(fh)
-
+contacts = AddressBook(dict())
 
 if __name__ == '__main__':
     main()
